@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时热门影视监控大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: #0a1a2b;
+            color: #fff;
+            font-family: 'Microsoft YaHei', sans-serif;
+            padding: 20px;
+        }
+        .dashboard { max-width:1400px; margin:0 auto; }
+        h1 {
+            text-align: center;
+            font-weight:300;
+            font-size:32px;
+            letter-spacing:4px;
+            margin-bottom:30px;
+            color:#4fc3f7;
+            text-shadow:0 0 10px rgba(79,195,247,0.3);
+        }
+        .chart-container {
+            background:rgba(255,255,255,0.05);
+            border-radius:12px;
+            padding:20px;
+            margin-bottom:30px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.5);
+        }
+        #rankChart { width:100%; height:400px; }
+        .table-container {
+            background:rgba(255,255,255,0.05);
+            border-radius:12px;
+            padding:20px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.5);
+        }
+        .table-container h2 {
+            font-weight:300;
+            font-size:22px;
+            margin-bottom:15px;
+            color:#b0bec5;
+        }
+        table {
+            width:100%;
+            border-collapse:collapse;
+            font-size:14px;
+        }
+        th, td {
+            padding:12px 15px;
+            text-align:center;
+            border-bottom:1px solid rgba(255,255,255,0.1);
+        }
+        th {
+            background:rgba(79,195,247,0.15);
+            color:#4fc3f7;
+            font-weight:500;
+            letter-spacing:1px;
+        }
+        td { color:#cfd8dc; }
+        tr:hover td { background:rgba(255,255,255,0.03); }
+        .rank-num { font-weight:bold; color:#ffd54f; }
+        .update-time {
+            text-align:right;
+            margin-top:10px;
+            color:#78909c;
+            font-size:13px;
+        }
+        .loading { text-align:center; color:#90a4ae; padding:20px; }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <h1>🎬 实时热门影视监控大屏</h1>
+
+    <div class="chart-container">
+        <div id="rankChart"></div>
+    </div>
+
+    <div class="table-container">
+        <h2>📊 累计点击排名</h2>
+        <div id="tableWrapper">
+            <table id="rankTable">
+                <thead>
+                <tr>
+                    <th>排名</th>
+                    <th>电影 ID</th>
+                    <th>累计点击量</th>
+                    <th>最后更新时间</th>
+                </tr>
+                </thead>
+                <tbody id="tableBody">
+                <tr><td colspan="4" class="loading">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="update-time" id="lastUpdate">最后更新：--</div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const chartDom = document.getElementById('rankChart');
+        const myChart = echarts.init(chartDom);
+        const colorList = ['#4fc3f7', '#81c784', '#ffb74d', '#f06292', '#ba68c8',
+            '#4dd0e1', '#aed581', '#ff8a65', '#9575cd', '#90a4ae'];
+
+        function fetchDataAndRender() {
+            fetch('/hot/rank')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('接收到的数据:', data);  // 调试用
+                    if (!data || data.length === 0) {
+                        document.getElementById('tableBody').innerHTML =
+                            '<tr><td colspan="4" style="color:#78909c;">暂无数据</td></tr>';
+                        myChart.clear();
+                        return;
+                    }
+
+                    // 按 totalClick 降序排序（确保排名正确）
+                    const sorted = data.slice().sort((a, b) => b.totalClick - a.totalClick);
+                    const top = sorted.slice(0, 10);
+                    const movieIds = top.map(item => '电影' + item.movieId);
+                    const clickCounts = top.map(item => item.totalClick);
+
+                    // 柱状图
+                    const option = {
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow' },
+                            formatter: function(params) {
+                                const p = params[0];
+                                const raw = sorted.find(d => '电影' + d.movieId === p.name);
+                                if (!raw) return p.name + '<br/>累计点击：' + p.value;
+                                return `电影 ID：${raw.movieId}<br/>累计点击：${raw.totalClick}<br/>更新时间：${raw.updateTime}`;
+                            }
+                        },
+                        grid: {
+                            left: '5%',
+                            right: '5%',
+                            bottom: '10%',
+                            top: '10%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: movieIds,
+                            axisLabel: { color: '#b0bec5', fontSize: 12 },
+                            axisLine: { lineStyle: { color: '#37474f' } }
+                        },
+                        yAxis: {
+                            type: 'value',
+                            axisLabel: { color: '#b0bec5' },
+                            splitLine: { lineStyle: { color: '#263238' } }
+                        },
+                        series: [{
+                            type: 'bar',
+                            data: clickCounts.map((value, index) => ({
+                                value: value,
+                                itemStyle: {
+                                    color: colorList[index % colorList.length],
+                                    borderRadius: [4,4,0,0]
+                                }
+                            })),
+                            barWidth: '40%',
+                            label: {
+                                show: true,
+                                position: 'top',
+                                color: '#cfd8dc',
+                                fontSize: 12
+                            }
+                        }]
+                    };
+                    myChart.setOption(option);
+
+                    // 表格渲染（全部数据）
+                    const tbody = document.getElementById('tableBody');
+                    let html = '';
+                    sorted.forEach((item, index) => {
+                        const rank = index + 1;
+                        const updateTime = item.updateTime ? new Date(item.updateTime).toLocaleString() : '--';
+                        html += `<tr>
+                            <td class="rank-num">${rank}</td>
+                            <td>${item.movieId}</td>
+                            <td>${item.totalClick}</td>
+                            <td>${updateTime}</td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                    document.getElementById('lastUpdate').innerText = '最后更新：' + new Date().toLocaleString();
+                })
+                .catch(error => {
+                    console.error('获取数据失败：', error);
+                    document.getElementById('tableBody').innerHTML =
+                        '<tr><td colspan="4" style="color:#e57373;">数据加载失败，请检查网络</td></tr>';
+                });
+        }
+
+        // 首次加载
+        fetchDataAndRender();
+        // 每5秒轮询
+        setInterval(fetchDataAndRender, 5000);
+        window.addEventListener('resize', () => myChart.resize());
+    })();
+</script>
+</body>
+</html>

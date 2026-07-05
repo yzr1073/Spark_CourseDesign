@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="guat.lxy.bigdata.sprak_cousedesign3.mapper.HotMovieRankMapper">
+
+    <resultMap id="BaseResultMap" type="guat.lxy.bigdata.sprak_cousedesign3.entity.HotMovieRank">
+        <result column="movie_id" property="movieId"/>
+        <result column="click_count" property="clickCount"/>
+        <result column="window_start" property="windowStart"/>
+        <result column="window_end" property="windowEnd"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectAllOrderByClickDesc" resultMap="BaseResultMap">
+        SELECT movie_id, click_count, window_start, window_end, create_time
+        FROM hot_movie_rank
+        ORDER BY click_count DESC
+        LIMIT 10
+    </select>
+
+</mapper>
